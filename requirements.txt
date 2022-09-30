@@ -8,3 +8,4 @@ streamlit==1.13.0
 xlrd
 openpyxl
 xlsxwriter
+streamlit-aggrid
