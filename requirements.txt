@@ -7,4 +7,6 @@ rapidfuzz==2.10.1
 pyxlsb==1.0.8
 matplotlib==3.6.0
 streamlit==1.13.0
+xlrd
 openpyxl
+xlsxwriter
