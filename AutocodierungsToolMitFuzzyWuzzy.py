@@ -16,7 +16,8 @@ from pyxlsb import open_workbook as open_xlsb
 
 #Für Abbildungen
 import matplotlib.pyplot as plt
-
+import plotly.express as px
+import plotly.graph_objects as go
 
 from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode #für editierbare Tabellen
 
@@ -76,6 +77,7 @@ Code = []
 anzahlCodierteZeilen = 0
 
 
+
 # ======== "Hier Versuche mit eigenem Datenimport, funzt !!!" =============================================================================#
 
 dfAntworten = pd.DataFrame()
@@ -99,6 +101,7 @@ if uploaded_file2:
     if (dfCodebuchImport.columns[1]) != "Codes":
         st.warning("Zweite Spalte in der Codeliste muss Codes heissen")
 
+
     anzahlZeilenMitDuplikate = len(dfCodebuchImport)
     #duplikate entfernen
     dfCodebuchImport = dfCodebuchImport.drop_duplicates(subset=['Name'], keep="first")
@@ -110,6 +113,7 @@ if uploaded_file2:
     #d2 = df2import.to_dict() #orient="index"
     dataupload2 = 2
     st.write("Codebuch als editierbares Dataframe (df):")
+    st.info("Obacht - nan darf nicht als Kategorie im Codebuch vorkommen")
     grid_return = AgGrid(dfCodebuchImport, editable=True,theme="streamlit", key="HalloThomas")
     dfCodebuch = grid_return['data']
 
@@ -171,7 +175,7 @@ if uploaded_file1:
     #Dataframe dass nur textvariablen enthält:
     dfAntwortenNurText = dfAntworten.select_dtypes(include=[object])
     
-
+    st.info("Text-Variable/Spalte auswählen")
     variablelAuswahl = st.selectbox("Text-Variable/Spalte auswählen, die codiert werden soll:", dfAntwortenNurText.columns)
     if variablelAuswahl !=[]:
         #st.write("Ausgewählte Variable: ",variablelAuswahl)
@@ -181,7 +185,8 @@ if uploaded_file1:
 
     st.write("")
 
-    IDvariablelAuswahl = st.selectbox("ID-Variable/Spalte auswählen:", dfAntworten.columns)
+    st.info("ID-Variable/Spalte auswählen")
+    IDvariablelAuswahl = st.selectbox("ID-Variable/Spalte auswählen. Erleichtert die Datenkontrolle:", dfAntworten.columns)
     if IDvariablelAuswahl !=[]:
         #st.write("Ausgewählte ID-Variable: ",IDvariablelAuswahl)
         #IDNR = IDvariablelAuswahl
@@ -226,8 +231,14 @@ if uploaded_file1:
     if leerschlagButton == True and kommaButton == True:
          dfAntwortenMitSplit = dfAntwortenMitSplit['Name'].str.split(',| ', expand=True)
 
+    if leerschlagButton == False and kommaButton == False:
+        dfAntwortenMitSplit['AIDNR'] = dfAntwortenMitSplit['IDNR']
+        dfAntwortenMitSplit['Nennung'] = "Nennung1"
+        dfAntwortenMitSplit['offeneAntwort'] = dfAntwortenMitSplit['Name']
+        #dfAntwortenMitSplit.drop(['Name', 'IDNR','Nennung'], axis=1)
+        #st.write("dfAntwortenMitSplit: ",dfAntwortenMitSplit)
 
-
+    #df_Antworten_Fuzzzioniert = pd.DataFrame({'AIDNR': [],'Nennung': [], 'offeneAntwort':[]})
 	#Möglichkeit: .str.split(',', n=1, expand=True) n=1 denotes that we want to make only one split.
 
 
@@ -255,16 +266,19 @@ if uploaded_file1:
         st.write("dfAntworten vor Splitting: ",dfAntworten)
         st.write("dfAntwortenMitSplit nach Splitting", dfAntwortenMitSplit)
 
-        anzahlSpalten = len(dfAntwortenMitSplit.columns)
+    anzahlSpalten = len(dfAntwortenMitSplit.columns)
+    st.write("anzahlSpalten: ",anzahlSpalten)
 
 
     st.markdown("---")
 
-
+    anzahlAusgewaehlteSpalten = 1
 
     SpaltenAuswahl = st.multiselect("Ev Antwort-Spalten auswählen, die codiert werden sollen -  aktuell stehen " + str(anzahlSpalten) + " Spalten zur Verfügung",dfAntwortenMitSplit.columns)
     if SpaltenAuswahl !=[]:
       dfAntwortenMitSplit = dfAntwortenMitSplit[SpaltenAuswahl]
+      anzahlAusgewaehlteSpalten = len(SpaltenAuswahl)
+      st.write("Anzahl ausgewählte Spalten:", anzahlAusgewaehlteSpalten)
     
     #jetzt wollen wir Dataframe umstellen, so dass links Nennung und IDNR stehen, die Nennungsspalten untereinander eingereiht werden
     
@@ -275,38 +289,51 @@ if uploaded_file1:
     df_Antworten_Fuzzzioniert = pd.DataFrame({'AIDNR': [],'Nennung': [], 'offeneAntwort':[]})
 
 
+    if leerschlagButton == False and kommaButton == False:
+        df_Antworten_Fuzzzioniert = dfAntwortenMitSplit[['AIDNR','Nennung','offeneAntwort']]
+
+
 
 #=========== Iterationen mit globals Variable ==========================================================#
 
-    for z in dfAntwortenMitSplit.columns:
-       #Zuerst taufen wir die Spaltenköpfe um
-       dfAntwortenMitSplit.rename(columns={z:'Nennung' + str(z+1)},inplace=True)
-       
-	   #Hier wird je Spalte ein neues Dataframe erstellt - funzt!!!
-       globals()[f"df_{z+1}"] = dfAntwortenMitSplit['Nennung' + str(z+1)]
 
-       #st.write("globals df sieht so aus:",  globals()[f"df_{z+1}"] )
+    else:
 
-       zwischen_Serie = globals()[f"df_{z+1}"]
+        for z in dfAntwortenMitSplit.columns:
+        #Zuerst taufen wir die Spaltenköpfe um
 
-       zwischen_df = pd.DataFrame(zwischen_Serie)
+            #st.write("z:",z)     
+            zaeler = z + 1
+            zaelerAlsText = str(zaeler)
+            #st.write("zaelerAlsText: ",zaelerAlsText)
 
-       zwischen_df['Nennung'] = "Nennung" + str(z+1)
-       
-       zwischen_df['AIDNR'] = dfAntworten['IDNR']
+            dfAntwortenMitSplit.rename(columns={z:'Nennung' + str(zaelerAlsText)},inplace=True)
+            
+            #Hier wird je Spalte ein neues Dataframe erstellt - funzt!!!
+            globals()[f"df_{z+1}"] = dfAntwortenMitSplit['Nennung' + str(zaelerAlsText)]
 
-       zwischen_df['offeneAntwort'] = dfAntwortenMitSplit['Nennung' + str(z+1)]
+            #st.write("globals df sieht so aus:",  globals()[f"df_{z+1}"] )
 
-		#Umstellung/Auswahl der Variablen
-       zwischen_df = zwischen_df[{'AIDNR','Nennung','offeneAntwort'}]
+            zwischen_Serie = globals()[f"df_{zaelerAlsText}"]
 
-       #st.write("zwischen_df: ",zwischen_df)
+            zwischen_df = pd.DataFrame(zwischen_Serie)
 
-	   #Und hier noch Werte zu einem wachsenden Datadrame hinzufügen...
-       df_Antworten_Fuzzzioniert = df_Antworten_Fuzzzioniert.append(zwischen_df, ignore_index=True)
+            zwischen_df['Nennung'] = "Nennung" + str(z+1)
+            
+            zwischen_df['AIDNR'] = dfAntworten['IDNR']
+
+            zwischen_df['offeneAntwort'] = dfAntwortenMitSplit['Nennung' + str(zaelerAlsText)]
+
+                #Umstellung/Auswahl der Variablen
+            zwischen_df = zwischen_df[{'AIDNR','Nennung','offeneAntwort'}]
+
+            #st.write("zwischen_df: ",zwischen_df)
+
+            #Und hier noch Werte zu einem wachsenden Datadrame hinzufügen...
+            df_Antworten_Fuzzzioniert = df_Antworten_Fuzzzioniert.append(zwischen_df, ignore_index=True)
     
-    #st.write("df_Antworten_Fuzzzioniert: ",df_Antworten_Fuzzzioniert)
-    #st.write("Anzahl Zeilen: ",len(df_Antworten_Fuzzzioniert))
+            #st.write("df_Antworten_Fuzzzioniert: ",df_Antworten_Fuzzzioniert)
+            #st.write("Anzahl Zeilen: ",len(df_Antworten_Fuzzzioniert))
 
 
 #======================= Hier startet fuzzying =====================================================#
@@ -314,17 +341,21 @@ if uploaded_file1:
     st.subheader("")
     st.subheader("Automatische Codierung mit process-extract (fuzz.WRatio):")
 
+    #st.write("df_Antworten_Fuzzzioniert: ",df_Antworten_Fuzzzioniert)
+    #st.write(df_Antworten_Fuzzzioniert.Nennung.unique())
+    #st.write(len(df_Antworten_Fuzzzioniert.offeneAntwort))
 
     codebuchKategorie = []
     similarity = []
     Code = []
+
 
     with st.form("my_form"):
         
         submitted = st.form_submit_button("Codiere!")
         if submitted:
             with st.spinner('Bin am codieren....'):
-                for i in df_Antworten_Fuzzzioniert.offeneAntwort :     
+                for i in df_Antworten_Fuzzzioniert.offeneAntwort:     
                     if pd.isnull( i ) :          
                         codebuchKategorie.append(np.nan)
                         similarity.append(np.nan)
@@ -341,7 +372,7 @@ if uploaded_file1:
             df_Antworten_Fuzzzioniert['similarity'] = pd.Series(similarity)
 
             #st.write("df_Antworten_Fuzzzioniert nach Fuzzy: ",df_Antworten_Fuzzzioniert)
-            st.write("Anzahl Zeilen nach Fuzzyionierung: ",len(df_Antworten_Fuzzzioniert))
+            st.write("Anzahl Zeilen nach Fuzzyionierung: ",len(df_Antworten_Fuzzzioniert.index))
 
             #Wenn similirity >= 80, schreibe 'OK' in die Spalte Codierungsresultat:
 
@@ -401,6 +432,46 @@ if uploaded_file1:
             st.write("Anzahl Zeilen: ",len(dfExcelExport))
             anzahlCodierteZeilen = len(dfExcelExport)
             #st.write("dfExcelExport: ",dfExcelExport )
+
+
+        ChartPreviewExpander = st.expander("Chart - Vorschau der Codierungsergebnisse:")
+
+        with ChartPreviewExpander:
+            if len(dfExcelExport) > 0:
+                #Erst nur Auswahl interessanten Spalten
+                df_codebuchKategorie = dfExcelExport [['codebuchKategorie']]
+                # #Dann Umstellung in Tabellformat das geeignet für Abbildungen ist:
+                df_codebuchKategorieAnzahl = df_codebuchKategorie['codebuchKategorie'].value_counts()
+                df_codebuchKategorieAnzahl = df_codebuchKategorieAnzahl.reset_index(level=0)
+                df_codebuchKategorieAnzahl = df_codebuchKategorieAnzahl.rename(columns={'codebuchKategorie':'Anzahl_Nennungen'})
+                df_codebuchKategorieAnzahl['Antwort'] = df_codebuchKategorieAnzahl['index']
+                #Dann nue interessante Zeilen beahlten ohne keine Nennung usw
+                df_codebuchKategorieAnzahl = df_codebuchKategorieAnzahl[((df_codebuchKategorieAnzahl.Antwort != 'nichts / keine') & (df_codebuchKategorieAnzahl.Antwort != 'nicht erkannt'))]
+                df_codebuchKategorieAnzahl['Prozentanteile'] = 100* df_codebuchKategorieAnzahl['Anzahl_Nennungen']/len(dfAntworten.index)
+                
+                st.write(df_codebuchKategorieAnzahl)
+                #st.bar_chart(data=df_codebuchKategorieAnzahl, y='Prozentanteile', use_container_width=True)
+                
+                CodierungsPreviewstapeldiagramm = px.bar(df_codebuchKategorieAnzahl, x='Antwort', y= 'Prozentanteile', text ='Prozentanteile'
+					#color_discrete_map={'Radio-RW' : FARBE_RADIO,'Zattoo-RW' : FARBE_ZATTOO ,'Kino-RW' : FARBE_KINO,'DOOH-RW' : FARBE_DOOH,'OOH-RW' : FARBE_OOH,'FACEBOOK-RW' : FARBE_FACEBOOK,'YOUTUBE-RW' : FARBE_YOUTUBE,'ONLINEVIDEO-RW' : FARBE_ONLINEVIDEO,'ONLINE-RW' : FARBE_ONLINE, 'TV-RW' : FARBE_TV, 'Gesamt-RW' : FARBE_GESAMT},
+			,color='Antwort', 
+			#color_discrete_map={'16 - 24 J.' : FARBE_16_24 ,'25 - 34 J.' : FARBE_25_34 ,'35 - 44 J.' : FARBE_35_44,'45 - 59 J.' : FARBE_45_59 },
+			title="Ungestützte Nennungen",
+			hover_data=['Prozentanteile'],
+		)
+                CodierungsPreviewstapeldiagramm.update_traces(texttemplate='%{text:.2s}', textposition='inside')
+                CodierungsPreviewstapeldiagramm.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+                CodierungsPreviewstapeldiagramm.update_layout(showlegend=False)
+                #CodierungsPreviewstapeldiagramm.update_layout(width=400,height=300)
+		        # Change grid color and axis colors
+                # CodierungsPreviewstapeldiagramm.update_yaxes(showline=True, linewidth=1, linecolor='white', gridcolor='Black')
+                st.plotly_chart(CodierungsPreviewstapeldiagramm, use_container_width=True)
+
+
+
+
+
+            
         
         AutoCodierung_Expander = st.expander("Kontroll-Tabelle mit allen offenen Antworten, Codes, similarity einsehen:")
 
