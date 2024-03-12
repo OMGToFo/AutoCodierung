@@ -131,7 +131,7 @@ if uploaded_file2:
                             worksheet = writer.sheets['Sheet1']
                             format1 = workbook.add_format({'num_format': '0.00'}) 
                             worksheet.set_column('A:A', None, format1)  
-                            writer.save()
+                            writer.close()
                             processed_data = output.getvalue()
                             return processed_data
                         df_xlsx = to_excel(dfCodebuch)
@@ -184,6 +184,7 @@ if uploaded_file1:
         #st.write("dfAntworten['Name'] : ",dfAntworten['Name']  )
 
     st.write("")
+    st.write("")
 
     st.info("ID-Variable/Spalte auswählen")
     IDvariablelAuswahl = st.selectbox("ID-Variable/Spalte auswählen. Erleichtert die Datenkontrolle:", dfAntworten.columns)
@@ -197,12 +198,38 @@ if uploaded_file1:
         st.warning("Bitte Variablen angeben")
 
     
-    dfAntworten = dfAntworten[{'IDNR', 'Name'}]
+    dfAntworten = dfAntworten[['IDNR', 'Name']]
+
+    #Test - gewisse Wörter zusammenschreiben
+    dfAntworten['Name'] = dfAntworten['Name'].str.lower()
+    a = ["credit suisse", "bank cler", "migros bank"]
+    b = ["credit_suisse", "bank_cler", "migros_bank"]
+    dfAntworten['Name'] = dfAntworten['Name'].replace(a,b,regex=True)
+    #dfAntworten['Name'] = dfAntworten['Name'].str.replace(a,b, case=False,regex=True)
+
 	
     #Anzahl Zeichen in Name/offene Antwortspalte - einzelBuchstaben Nennungen raus bitte
     dfAntworten['AnzahlZeichen'] = dfAntworten['Name'].str.len()
     dfAntworten['Name'] = np.where(dfAntworten['AnzahlZeichen']== 1, "keine Antwort", dfAntworten.Name)
-	
+
+    dfAntworten['AnzahlWorte'] = dfAntworten['Name'].str.split().str.len()
+    dfAntworten['AnzahlKommata'] = dfAntworten['Name'].str.count(",")
+
+    
+    st.write("")
+    st.markdown("---")
+    st.write("")
+
+    #wenn mehere Worte aber kein Komma -> füge Komma(s) ein
+    kommataEinfuegen = st.checkbox("Kommata einfügen? (statt Leerzeichen in Antworten mit mehr als 2 Worten aber ganz ohne Kommas)")
+    if kommataEinfuegen:
+        dfAntworten['AntwortenVorBearbeitung'] = dfAntworten['Name']
+        dfAntworten['Name'] = np.where((dfAntworten['AnzahlKommata']<1) & (dfAntworten['AnzahlWorte']>2),dfAntworten['Name'].str.replace(" ",","), dfAntworten.Name)
+        kommataEinfuegungsCheck = st.expander("Datenfile nach Kommata ergänzungen")
+        with kommataEinfuegungsCheck:
+             st.dataframe(dfAntworten)
+
+
 	#Ersetze leere Zellen
     dfAntworten['0'] = dfAntworten['Name'].fillna('keine Antwort')
     
@@ -216,6 +243,21 @@ if uploaded_file1:
     #Test - Split nach Komma und /oder  Leerschlag
 
     st.subheader("")
+    #dfAntwortenMitSplit = dfAntwortenMitSplit['Name'].str.strip()
+
+    st.subheader("")
+    st.markdown("---")
+
+    leereZellenLoeschen = st.checkbox("Alle leere Textstellen löschen?",value=False)
+    if leereZellenLoeschen:
+         dfAntwortenMitSplit['Name'] = dfAntwortenMitSplit['Name'].str.replace(" ","")
+         dfCodebuch['Name'] = dfCodebuch['Name'].str.replace(" ","")
+         leerzellenDFsAnzeigen = st.button("Datensatz und Codebuch anzeigen?")
+         if leerzellenDFsAnzeigen:
+            st.dataframe(dfCodebuch)
+            st.dataframe(dfAntwortenMitSplit)
+
+    st.subheader("")
     st.markdown("---")
 
     st.write("Ev Splitting auswählen:")
@@ -224,7 +266,11 @@ if uploaded_file1:
     leerschlagButton = st.checkbox('Nach Leerschlag splitten')
     if kommaButton == True and leerschlagButton == False:
         dfAntwortenMitSplit = dfAntwortenMitSplit['Name'].str.split(',', expand=True)
-    
+
+
+
+
+
     if leerschlagButton == True and kommaButton == False:
         dfAntwortenMitSplit = dfAntwortenMitSplit['Name'].str.split(' ', expand=True)
 
@@ -325,12 +371,18 @@ if uploaded_file1:
             zwischen_df['offeneAntwort'] = dfAntwortenMitSplit['Nennung' + str(zaelerAlsText)]
 
                 #Umstellung/Auswahl der Variablen
-            zwischen_df = zwischen_df[{'AIDNR','Nennung','offeneAntwort'}]
+            #code bis 2023.07.12 zwischen_df = zwischen_df[{'AIDNR','Nennung','offeneAntwort'}]
+            zwischen_df = zwischen_df[['AIDNR','Nennung','offeneAntwort']]
 
             #st.write("zwischen_df: ",zwischen_df)
 
             #Und hier noch Werte zu einem wachsenden Datadrame hinzufügen...
-            df_Antworten_Fuzzzioniert = df_Antworten_Fuzzzioniert.append(zwischen_df, ignore_index=True)
+            #Code bis 2023.07.12
+            #df_Antworten_Fuzzzioniert = df_Antworten_Fuzzzioniert.append(zwischen_df, ignore_index=True)
+            #You need to use concat instead (for most applications):
+
+            df_Antworten_Fuzzzioniert = pd.concat([df_Antworten_Fuzzzioniert, zwischen_df]).reset_index(drop=True)
+            
     
             #st.write("df_Antworten_Fuzzzioniert: ",df_Antworten_Fuzzzioniert)
             #st.write("Anzahl Zeilen: ",len(df_Antworten_Fuzzzioniert))
@@ -365,7 +417,7 @@ if uploaded_file1:
                         similarity.append(ratio[0][1])
                         df_Antworten_Fuzzzioniert['ID'] = df_Antworten_Fuzzzioniert['AIDNR']
 
-            st.success('Fertig')           
+            st.success('Fertig!')           
 
             df_Antworten_Fuzzzioniert['codebuchKategorie'] = pd.Series(codebuchKategorie)
             df_Antworten_Fuzzzioniert['codebuchKategorie'] = df_Antworten_Fuzzzioniert['codebuchKategorie'] #+ ' im Codebuch'
@@ -398,10 +450,9 @@ if uploaded_file1:
 
             #st.write("Final Result; ",final_result)
 
-            #genial einfach formatierte tabelle
-            st.write("Kontroll-Tabelle mit einer Übersicht der offenen Antworten, den ähnlichsten Kategorien aus dem Codebuch und die Similarity:")
-            st.write(final_result.style.background_gradient(subset='similarity', cmap='summer_r'))
 
+
+            st.write("")
             #st.write(final_result.describe())
             #st.write(final_result.similarity.value_counts())
             anzahlHoheWerte = final_result[final_result['similarity']>= GrenzWert]
@@ -409,7 +460,11 @@ if uploaded_file1:
             st.write("Prozent-Anteil der Werte mit mindestens " +str(GrenzWert) + "% similarity:",int(100*(len(anzahlHoheWerte)/len(final_result.index))))
             
         
-
+            #genial einfach formatierte tabelle
+            farbigeKontrollTabelle = st.expander("Farbige Kontroll-Tabelle mit einer Übersicht der offenen Antworten, leider etwas langsam")
+            with farbigeKontrollTabelle:
+                st.write("Kontroll-Tabelle mit einer Übersicht der offenen Antworten, den ähnlichsten Kategorien aus dem Codebuch und die Similarity:")
+                st.write(final_result.style.background_gradient(subset='similarity', cmap='summer_r'))
 
 
             #Umformatierung für Excelexport
@@ -433,20 +488,33 @@ if uploaded_file1:
             anzahlCodierteZeilen = len(dfExcelExport)
             #st.write("dfExcelExport: ",dfExcelExport )
 
-
+        _=""" Funktioniert plötzlich nicht mehr 2023.07.12
         ChartPreviewExpander = st.expander("Chart - Vorschau der Codierungsergebnisse:")
 
         with ChartPreviewExpander:
             if len(dfExcelExport) > 0:
+
+
                 #Erst nur Auswahl interessanten Spalten
                 df_codebuchKategorie = dfExcelExport [['codebuchKategorie']]
                 # #Dann Umstellung in Tabellformat das geeignet für Abbildungen ist:
                 df_codebuchKategorieAnzahl = df_codebuchKategorie['codebuchKategorie'].value_counts()
+                st.write("df_codebuchKategorieAnzahl:", df_codebuchKategorieAnzahl)
                 df_codebuchKategorieAnzahl = df_codebuchKategorieAnzahl.reset_index(level=0)
+                st.write("df_codebuchKategorieAnzahl:", df_codebuchKategorieAnzahl)
                 df_codebuchKategorieAnzahl = df_codebuchKategorieAnzahl.rename(columns={'codebuchKategorie':'Anzahl_Nennungen'})
+                st.write("df_codebuchKategorieAnzahl:", df_codebuchKategorieAnzahl)
+                
+                
+
                 df_codebuchKategorieAnzahl['Antwort'] = df_codebuchKategorieAnzahl['index']
+
+
+
+
                 #Dann nue interessante Zeilen beahlten ohne keine Nennung usw
                 df_codebuchKategorieAnzahl = df_codebuchKategorieAnzahl[((df_codebuchKategorieAnzahl.Antwort != 'nichts / keine') & (df_codebuchKategorieAnzahl.Antwort != 'nicht erkannt'))]
+                df_codebuchKategorieAnzahl = df_codebuchKategorieAnzahl[((df_codebuchKategorieAnzahl.Antwort != 'nichts/keine') & (df_codebuchKategorieAnzahl.Antwort != 'nichterkannt'))]
                 df_codebuchKategorieAnzahl['Prozentanteile'] = 100* df_codebuchKategorieAnzahl['Anzahl_Nennungen']/len(dfAntworten.index)
                 
                 st.write(df_codebuchKategorieAnzahl)
@@ -468,12 +536,12 @@ if uploaded_file1:
                 st.plotly_chart(CodierungsPreviewstapeldiagramm, use_container_width=True)
 
 
-
+            """
 
 
             
         
-        AutoCodierung_Expander = st.expander("Kontroll-Tabelle mit allen offenen Antworten, Codes, similarity einsehen:")
+        AutoCodierung_Expander = st.expander("Tip: Kontroll-Tabelle mit allen offenen Antworten, Codes, similarity einsehen:")
 
         with AutoCodierung_Expander:
             if len(dfExcelExport) > 0:
@@ -488,7 +556,7 @@ if uploaded_file1:
                                 worksheet = writer.sheets['Sheet1']
                                 format1 = workbook.add_format({'num_format': '0.00'}) 
                                 worksheet.set_column('A:A', None, format1)  
-                                writer.save()
+                                writer.close()
                                 processed_data = output.getvalue()
                                 return processed_data
 
@@ -515,7 +583,7 @@ if uploaded_file1:
                                     worksheet = writer.sheets['Sheet1']
                                     format1 = workbook.add_format({'num_format': '0.00'}) 
                                     worksheet.set_column('A:A', None, format1)  
-                                    writer.save()
+                                    writer.close()
                                     processed_data = output.getvalue()
                                     return processed_data
 
